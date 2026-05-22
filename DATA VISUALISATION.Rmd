@@ -1,0 +1,491 @@
+---
+title: |
+  <h1 style='font-size:38px; font-weight:bold;'>Exploring how dietary patterns shape the global obesity crisis</h1><br>
+  <h3 style='font-style:italic; font-size:22px;'>How our diets shape our destiny: A data driven journey into global obesity</h3><br>
+  <p style='font-size:20px;'><strong>Course Name & Code:</strong> Data Visualisation and Communication (<strong>MATH2270</strong>)</p>
+
+author: "Prathibha Magesh"
+output: slidy_presentation
+
+---
+
+
+# Introduction
+
+## A Global Weight Gain Story
+
+In the last few decades, our plates and waistlines have changed dramatically.
+
+Once, traditional home-cooked meals nourished families. Today, processed snacks and fast food dominate diets across both developed and developing nations. With drive-thrus replacing dinner tables, the world is gaining weight fast.
+
+**Obesity** is now a global epidemic, affecting over **650 million adults worldwide** (WHO, 2024). The culprits? A rapid rise in **high-calorie, nutrient-poor diets**, often rich in sugar, saturated fats, and refined carbohydrates.
+
+As countries industrialize, fast food becomes more accessible and affordable gradually replacing traditional diets once rich in fibre, plant-based protein, and whole grains.
+
+This dietary shift leads to an **energy imbalance**, causing excess body fat accumulation and elevating risks of **type 2 diabetes, heart disease, and cancer**.
+
+> **How do changing intakes of sugar, fat, protein, and carbs shape the global obesity crisis?**
+
+This project explores that question using global data from **1990 to 2022**, investigating the correlations between **macronutrient intake** and **obesity rates** over time and geography.
+
+
+# Data Sources & Preprocessing
+
+### Where Our Data Comes From
+
+To explore the nutrition-obesity link, we combined **three open global datasets**:
+
+- **Obesity Rates (WHO GHO)**  
+  > Age-standardized % of obese adults (BMI ≥ 30), 1990–2022  
+
+- **Diet Composition (FAO)**  
+  > Per capita daily kilocalories from food groups like sugar, fats, oils, etc.
+
+- **Macronutrient Supply (Our World in Data)**  
+  > Average kcal/day from carbohydrates, fat, and animal vs. plant protein
+
+### Preprocessing Steps
+
+- Merged datasets by `Country` and `Year`
+- Selected variables: **Obesity Rate**, **Sugar**, **Fat**, **Carbs**, **Animal & Plant Protein**
+- Filtered for complete cases (no missing kcal values)
+- Final dataset: **5,600+ country-year observations (1990–2022)**
+
+This cleaned dataset is the foundation of our interactive visual analysis.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(plotly)
+library(readr)
+
+# Load datasets
+obesity_data <- read_csv("C:/Users/prath/Downloads/obesity-prevalence-adults-who-gho/obesity-prevalence-adults-who-gho.csv")
+diet_data <- read_csv("C:/Users/prath/Downloads/dietary-composition-by-country/dietary-composition-by-country.csv")
+calories_data <- read_csv("C:/Users/prath/Downloads/daily-caloric-supply-derived-from-carbohydrates-protein-and-fat/daily-caloric-supply-derived-from-carbohydrates-protein-and-fat.csv")
+
+# Step 1: Clean Obesity Data
+obesity_clean <- obesity_data %>%
+  rename(
+    Country = Entity,
+    Obesity_Rate = `Prevalence of obesity among adults, BMI >= 30 (age-standardized estimate) (%) - Sex: both sexes - Age group: 18+  years of age`
+  ) %>%
+  select(Country, Year, Obesity_Rate)
+
+# Step 2: Clean Diet Composition Data
+diet_clean <- diet_data %>%
+  rename(Country = Entity) %>%
+  select(Country, Year,
+         Sugar_kcal = `Sugar & Sweeteners | 00002909 || Food available for consumption | 0664pc || kilocalories per day per capita`)
+
+# Step 3: Clean Macronutrient Composition Data
+calories_clean <- calories_data %>%
+  rename(Country = Entity) %>%
+  select(Country, Year,
+         Animal_Protein_kcal = `Daily calorie supply per person that comes from animal protein`,
+         Plant_Protein_kcal = `Daily calorie supply per person that comes from vegetal protein`,
+         Fat_kcal = `Daily calorie supply per person from fat`,
+         Carbs_kcal = `Daily calorie supply per person from carbohydrates`)
+
+# Step 4: Merge all data
+merged_df <- obesity_clean %>%
+  inner_join(diet_clean, by = c("Country", "Year")) %>%
+  inner_join(calories_clean, by = c("Country", "Year"))
+
+# Step 5: Filter and select clean_df
+clean_df <- merged_df %>%
+  filter(Year >= 1990) %>%
+  select(Country, Year, Obesity_Rate, Sugar_kcal, Fat_kcal, Carbs_kcal, Animal_Protein_kcal, Plant_Protein_kcal) %>%
+  filter(!is.na(Obesity_Rate), !is.na(Sugar_kcal), !is.na(Fat_kcal), !is.na(Carbs_kcal))
+
+```
+
+# Global Macronutrient Intake Trends (1990–2022)
+
+## Are We Eating Differently Over Time?
+
+This stacked area chart visualizes the average global intake (in kcal/day) of five macronutrients from 1990 to 2022:
+
+### Key Observations:
+- **Carbohydrates** remain the largest energy source, though their share has slightly declined.
+- **Fat intake** has steadily increased, reflecting dietary shifts toward processed and high-fat foods.
+- **Sugar consumption** rose modestly, especially post-2000.
+- **Animal protein** has gradually overtaken 
+- **plant protein** in global diets, especially in industrialized nations.
+
+```{r}
+
+global_macro <- clean_df %>%
+  group_by(Year) %>%
+  summarise(
+    Sugar = mean(Sugar_kcal, na.rm = TRUE),
+    Fat = mean(Fat_kcal, na.rm = TRUE),
+    Carbs = mean(Carbs_kcal, na.rm = TRUE),
+    Animal_Protein = mean(Animal_Protein_kcal, na.rm = TRUE),
+    Plant_Protein = mean(Plant_Protein_kcal, na.rm = TRUE)
+  ) %>%
+  pivot_longer(cols = -Year, names_to = "Macronutrient", values_to = "kcal")
+
+# Define stacked order
+macro_order <- c("Sugar", "Plant_Protein", "Animal_Protein", "Fat", "Carbs")
+global_macro$Macronutrient <- factor(global_macro$Macronutrient, levels = macro_order)
+
+# Create interactive plot
+plot_ly(global_macro,
+        x = ~Year, y = ~kcal, color = ~Macronutrient,
+        colors = c("Carbs" = "#e07a5f", "Fat" = "#3366CC", "Animal_Protein" = "#9d4edd",
+                   "Plant_Protein" = "#2E7D32", "Sugar" = "#f6c177"),
+        type = 'scatter', mode = 'none', stackgroup = 'one', fill = 'tonexty',
+        text = ~paste0("Year: ", Year, "<br>Macronutrient: ", Macronutrient,
+                       "<br>Avg Intake: ", round(kcal), " kcal/day"),
+        hoverinfo = 'text') %>%
+  layout(title = "Global Average Macronutrient Intake (kcal/day) (1990–2022)",
+         xaxis = list(title = "Year"),
+         yaxis = list(title = "kcal/day"),
+         legend = list(title = list(text = "Macronutrient")))
+
+
+```
+
+### Implication:
+These macronutrient shifts reflect a **nutrition transition** from traditional diets to modern, energy-dense foods that aligns with rising obesity rates.
+
+> Let’s see how this connects with the global obesity curve.
+
+
+
+
+# **Global Obesity and Nutrition Trends (1990–2022)**
+
+#### *A Rising Curve with a Deeper Cause*
+
+Over the last three decades, something has quietly but dramatically shifted across the world.
+
+In 1990, global obesity affected fewer than 1 in 10 adults. By 2022, that number had surged past 1 in 5, and it continues to rise.
+
+What changed?
+
+As countries urbanized and food systems evolved, traditional diets gave way to modern, energy-dense foods. These new diets are rich in added sugars, processed fats, and animal-based products, while often lacking essential fiber and nutrients.
+
+
+```{r plot_global_obesity_trend, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Load plotly if not already
+library(plotly)
+
+# Ensure global_trend is created first
+global_trend <- clean_df %>%
+  group_by(Year) %>%
+  summarise(Global_Obesity = mean(Obesity_Rate, na.rm = TRUE))
+
+# Plotly chart with two traces
+p <- plot_ly()
+
+# Add trend line
+p <- add_trace(p,
+               data = global_trend,
+               x = ~Year, y = ~Global_Obesity,
+               type = 'scatter', mode = 'lines',
+               line = list(color = 'black'),
+               name = 'Trend Line (Black)')
+
+# Add data points
+p <- add_trace(p,
+               data = global_trend,
+               x = ~Year, y = ~Global_Obesity,
+               type = 'scatter', mode = 'markers',
+               marker = list(color = 'blue', size = 6),
+               name = 'Data Points (Blue Dots)',
+               text = ~paste("Year:", Year,
+                             "<br>Obesity Rate:", round(Global_Obesity, 2), "%"))
+
+# Layout
+p <- layout(p,
+            title = "Global Average Obesity Rate Over Time (1990–2022)",
+            xaxis = list(title = "Year"),
+            yaxis = list(title = "Obesity Rate (%)"),
+            legend = list(
+              x = 0.02,
+              y = 0.98,
+              bgcolor = "rgba(255,255,255,0.5)",
+              bordercolor = "black",
+              borderwidth = 1
+            ),
+            hovermode = "x unified")
+
+p
+
+
+
+```
+At the same time, physical activity declined and sedentary lifestyles became the norm. But the real story is captured in the data:
+
+* The **black line** shows the consistent rise in global obesity prevalence from 1990 to 2022.
+* The **blue dots** represent measured yearly averages, highlighting a clear and continuous upward trend.
+
+This chart is not just data—it reflects a global shift in the way we eat, live, and move.
+
+- The **global obesity rate** has more than **doubled**, climbing from ~10% in 1990 to **over 23%** by 2022.
+- The trend aligns with increased **energy-dense, nutrient-poor diets**.
+-  The sharpest growth occurred **post-2000**, coinciding with fast food proliferation and lifestyle changes.
+
+> This global rise signals a deeper nutritional shift.
+
+Up next: What **macronutrients** are most strongly linked to this pattern?
+
+
+
+# What Drives Obesity? Macronutrient Correlations
+
+## Identifying Key Dietary Drivers
+
+To investigate potential contributors to the global rise in obesity, we examined correlations between macronutrient intake and obesity rates from 1990 to 2022.
+
+### Key Insights:
+
+- **Sugar** and **fat intake** are strongly and positively correlated with obesity rates.
+- **Animal protein** shows moderate positive correlation.
+- **Carbohydrates** have a weak or slightly negative correlation.
+- **Plant protein** exhibits a weak negative association.
+
+
+```{r}
+cor_df <- clean_df %>%
+  select(Obesity_Rate, Sugar_kcal, Fat_kcal, Carbs_kcal, Animal_Protein_kcal, Plant_Protein_kcal)
+
+cor_matrix <- cor(cor_df, use = "complete.obs")
+
+plot_ly(
+  x = colnames(cor_matrix),
+  y = rownames(cor_matrix),
+  z = cor_matrix,
+  type = "heatmap",
+  colorscale = "RdBu", zmin = -1, zmax = 1, reversescale = TRUE
+) %>%
+  layout(title = "Correlation Between Obesity and Macronutrients",
+         xaxis = list(tickangle = 45), yaxis = list(title = ""))
+
+
+```
+### Interpretation:
+
+Diets high in sugar and fat appear to be key contributors to rising obesity rates, while plant-based diets may offer a protective effect.
+
+This evidence highlights the nutritional transition driving global obesity trends.
+
+> Next: We explore how each macronutrient individually relates to obesity rates.
+
+
+# Obesity vs. Macronutrient Intake
+
+### How Does Each Nutrient Influence Obesity?
+
+This section explores how specific macronutrients correlate with obesity rates based on global data (1990–2022):
+
+- **Sugar:** Strong positive correlation countries with higher sugar intake generally have higher obesity rates.
+- **Fat:** Also positively associated with obesity, though less consistent than sugar.
+- **Carbohydrates:** Weak or no clear association some high-carb diets correspond with lower obesity rates.
+- **Protein:**
+- *Animal protein* shows a mild positive trend.
+- *Plant protein* tends to have a neutral or slightly protective effect.
+
+
+
+
+```{r obesity_vs_macros_interactive, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+# ---------- 1. Create the five ggplots ----------
+plots <- list(
+  Sugar = ggplot(clean_df, aes(Sugar_kcal, Obesity_Rate)) +
+    geom_point(alpha = 0.3, colour = "#1f77b4") +
+    geom_smooth(method = "lm", colour = "black") +
+    labs(title = "Obesity vs Sugar", x = "Sugar (kcal/day)", y = "Obesity Rate (%)"),
+
+  Fat = ggplot(clean_df, aes(Fat_kcal, Obesity_Rate)) +
+    geom_point(alpha = 0.3, colour = "#ff7f0e") +
+    geom_smooth(method = "lm", colour = "black") +
+    labs(title = "Obesity vs Fat", x = "Fat (kcal/day)", y = "Obesity Rate (%)"),
+
+  Carbs = ggplot(clean_df, aes(Carbs_kcal, Obesity_Rate)) +
+    geom_point(alpha = 0.3, colour = "#2ca02c") +
+    geom_smooth(method = "lm", colour = "black") +
+    labs(title = "Obesity vs Carbohydrates", x = "Carbs (kcal/day)", y = "Obesity Rate (%)"),
+
+  `Animal Protein` = ggplot(clean_df, aes(Animal_Protein_kcal, Obesity_Rate)) +
+    geom_point(alpha = 0.3, colour = "#d62728") +
+    geom_smooth(method = "lm", colour = "black") +
+    labs(title = "Obesity vs Animal Protein", x = "Animal Protein (kcal/day)", y = "Obesity Rate (%)"),
+
+  `Plant Protein` = ggplot(clean_df, aes(Plant_Protein_kcal, Obesity_Rate)) +
+    geom_point(alpha = 0.3, colour = "#9467bd") +
+    geom_smooth(method = "lm", colour = "black") +
+    labs(title = "Obesity vs Plant Protein", x = "Plant Protein (kcal/day)", y = "Obesity Rate (%)")
+)
+
+# ---------- 2. Convert to plotly & gather traces ----------
+plt_list   <- lapply(plots, ggplotly, tooltip = "text")
+trace_list <- do.call(c, lapply(plt_list, function(p) p$x$data))
+
+grp_vec <- rep(names(plots), sapply(plt_list, function(p) length(p$x$data)))
+vis_vec <- grp_vec == names(plots)[1]  # default visible: Sugar
+
+# ---------- 3. Build the switchable figure ----------
+p <- plot_ly()
+for (i in seq_along(trace_list)) {
+  tr <- trace_list[[i]]
+  p  <- add_trace(p,
+    x = tr$x, y = tr$y,
+    type = tr$type, mode = tr$mode,
+    marker = tr$marker, line = tr$line,
+    name = grp_vec[i],
+    visible = vis_vec[i],
+    hoverinfo = tr$hoverinfo %||% "x+y"
+  )
+}
+
+# ---------- 4. Add dropdown menu ----------
+buttons <- lapply(unique(grp_vec), function(grp) {
+  list(method = "restyle",
+       args = list("visible", grp_vec == grp),
+       label = grp)
+})
+
+# ---------- 5. Add annotations ----------
+explain_txt <- paste(
+  "<b>Legend guide</b><br>",
+  "● Points = country-year observations<br>",
+  "― Solid line = linear regression fit<br>",
+  "▬ Faint band = 95% confidence interval"
+)
+
+p <- layout(p,
+  title = "Obesity vs Macronutrient Intake (Interactive)",
+  xaxis = list(title = "Macronutrient intake (kcal/day)"),
+  yaxis = list(title = "Obesity Rate (%)"),
+  updatemenus = list(
+    list(type = "dropdown", direction = "down",
+         x = 0, y = 1.15, buttons = buttons,
+         showactive = TRUE)
+  ),
+  annotations = list(
+    list(text  = explain_txt,
+         xref = "paper", yref = "paper",
+         x = 1.02, y = 1,
+         showarrow = FALSE, align = "left",
+         font = list(size = 11))
+  ),
+  margin = list(r = 140)
+)
+
+p
+
+
+```
+
+
+## Summary: What Drives Obesity?
+
+- Obesity has more than doubled globally since 1990.
+- Sugar and fat intake show strong positive relationships with obesity.
+- Plant-based diets appear to offer modest protective effects.
+- The transition to energy-dense, processed foods is a major global concern.
+
+> These patterns offer a big-picture view, but which regions are most affected?
+
+
+
+# Country Focus: Top 10 by Average Obesity Rate (1990–2022)
+
+- Small island nations in the **Pacific region** dominate the list.
+- These countries have undergone rapid **dietary westernization**, often replacing traditional, nutrient-dense diets with imported processed foods.
+- **Tonga, Nauru, and Tuvalu** consistently show average obesity rates above **60%**.
+- High prevalence is linked to affordability of processed imports and limited access to fresh, local foods.
+
+> Global solutions must consider **localized dietary shifts** and **cultural influences**.
+
+
+```{r}
+top10 <- clean_df %>%
+  group_by(Country) %>%
+  summarise(Avg_Obesity = mean(Obesity_Rate, na.rm = TRUE)) %>%
+  arrange(desc(Avg_Obesity)) %>%
+  slice(1:10)
+
+plot_ly(top10,
+        x = ~Avg_Obesity, y = ~reorder(Country, Avg_Obesity),
+        type = 'bar', orientation = 'h',
+        marker = list(color = '#f6c177'),
+        text = ~paste0(Country, ": ", round(Avg_Obesity, 1), "%"),
+        hoverinfo = 'text') %>%
+  layout(title = "Top 10 Countries by Average Obesity Rate",
+         xaxis = list(title = "Obesity Rate (%)"),
+         yaxis = list(title = "Country"))
+
+
+```
+
+
+
+# Can We Predict Obesity From Diet?
+
+- A **linear regression** shows that sugar intake alone explains **~29%** of the variance in obesity.
+- A **multiple regression model** using sugar, fat, carbs, and proteins improves explanatory power to **~37% (R² = 0.37)**.
+
+
+```{r, include=FALSE }
+# Linear Model: Obesity vs Sugar
+model_sugar <- lm(Obesity_Rate ~ Sugar_kcal, data = clean_df)
+summary(model_sugar)
+
+# Multiple Regression Model
+model_multi <- lm(Obesity_Rate ~ Sugar_kcal + Fat_kcal + Carbs_kcal +
+                    Animal_Protein_kcal + Plant_Protein_kcal, data = clean_df)
+summary(model_multi)
+```
+
+```{r, echo=FALSE }
+# Predicted vs Actual
+predicted <- predict(model_multi, clean_df)
+
+p_pred <- ggplot(data.frame(Actual = clean_df$Obesity_Rate, Predicted = predicted),
+                 aes(x = Predicted, y = Actual)) +
+  geom_point(alpha = 0.3, color = "darkblue") +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  labs(title = "Predicted vs Actual Obesity Rate", x = "Predicted", y = "Actual")
+
+ggplotly(p_pred)
+
+```
+
+
+### What the Prediction Plot Shows:
+- The red line represents perfect prediction (Actual = Predicted).
+- The scatter shows some variability indicating **other lifestyle, economic, and genetic factors** also play a role.
+- Still, **macronutrient intake** has a measurable and statistically significant effect on obesity trends.
+
+
+
+# Conclusion
+
+Over the past three decades, global obesity rates have **more than doubled**, rising alongside significant shifts in dietary patterns.
+This analysis uncovered clear patterns:
+
+- **High intake** of sugar, fat, and animal protein is **strongly linked** to higher obesity rates.  
+- Nations most affected including many **Pacific islands** and **resource-rich countries** are experiencing rapid **nutrition and lifestyle transitions**.  
+- In contrast, **plant-based diets** and **moderate sugar consumption** appear to offer **protective benefits**.
+Together, these findings paint a powerful picture:  
+**Obesity is not just a personal health issue it's a global nutritional consequence.**
+
+> Effective policy, education, and access to healthier foods are essential to reverse this rising tide.
+
+## Reference
+
+[1]Ritchie, H., & Roser, M. (2024). Obesity prevalence among adults (WHO). Our World in Data. https://ourworldindata.org/grapher/obesity-prevalence-adults-who-gho
+
+[2]Ritchie, H., & Roser, M. (2024). Daily caloric supply from carbohydrates, protein and fat. Our World in Data. https://ourworldindata.org/grapher/daily-caloric-supply-derived-from-carbohydrates-protein-and-fat
+
+[3]Ritchie, H., & Roser, M. (2024). Dietary composition by country. Our World in Data. https://ourworldindata.org/grapher/dietary-composition-by-country
