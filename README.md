@@ -57,6 +57,13 @@ library(patchwork)
 - Pacific island nations (Tonga, Nauru, Tuvalu) have the highest average obesity rates
 - A multiple regression model using all macronutrients explains ~37% of obesity variance (R² = 0.37)
 
+  ## 📁 Repository Structure
+├── assignment3.Rmd
+├── reports
+├── data/                 
+└── README.md
+
+
 ## 👩‍💻 Author
 
 **Prathibha Magesh** — RMIT University, s3859590
