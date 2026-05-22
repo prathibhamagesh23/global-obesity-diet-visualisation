@@ -56,3 +56,7 @@ library(patchwork)
 - Plant-based diets appear to offer a modest protective effect
 - Pacific island nations (Tonga, Nauru, Tuvalu) have the highest average obesity rates
 - A multiple regression model using all macronutrients explains ~37% of obesity variance (R² = 0.37)
+
+## 👩‍💻 Author
+
+**Prathibha Magesh** — RMIT University, s3859590
